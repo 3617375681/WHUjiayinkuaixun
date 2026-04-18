@@ -1,10 +1,21 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { runCrawler } = require('./crawler');
 
+// 读取 .env 文件（如果存在）
+try {
+    const envFile = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+    envFile.split('\n').forEach(line => {
+        const [key, ...vals] = line.trim().split('=');
+        if (key && vals.length) process.env[key] = vals.join('=');
+    });
+} catch (_) {}
+
 let port = Number(process.env.PORT) || 8003;
 const MESSAGES_FILE = './messages.json';
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 
 // 初始化消息文件
 if (!fs.existsSync(MESSAGES_FILE)) {
@@ -53,6 +64,94 @@ const server = http.createServer((req, res) => {
     if (filePath === './') filePath = './index.html';
 
     // API 路由处理
+    if (requestUrl.pathname === '/api/ai-chat') {
+        if (req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => body += chunk.toString());
+            req.on('end', () => {
+                try {
+                    const { message, userInfo, competitions } = JSON.parse(body);
+
+                    // 构建发送给DeepSeek的prompt
+                    const systemPrompt = `你是武汉大学校园竞赛推荐助手。根据学生的信息和当前可用的竞赛列表，为学生推荐最合适的竞赛。
+
+可用竞赛列表：
+${JSON.stringify(competitions, null, 2)}
+
+请根据学生的学院、年级、兴趣等信息，从上述竞赛列表中推荐最合适的3-5个竞赛，并说明推荐理由。回答要简洁、友好、有针对性。`;
+
+                    const userPrompt = `学生信息：${JSON.stringify(userInfo)}
+学生问题：${message}`;
+
+                    // 调用DeepSeek API
+                    const postData = JSON.stringify({
+                        model: 'deepseek-chat',
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: userPrompt }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 2000
+                    });
+
+                    const options = {
+                        hostname: 'api.deepseek.com',
+                        port: 443,
+                        path: '/v1/chat/completions',
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+                            'Content-Length': Buffer.byteLength(postData)
+                        }
+                    };
+
+                    const apiReq = https.request(options, (apiRes) => {
+                        let responseData = '';
+                        apiRes.on('data', chunk => responseData += chunk);
+                        apiRes.on('end', () => {
+                            try {
+                                const result = JSON.parse(responseData);
+                                if (result.choices && result.choices[0]) {
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({
+                                        success: true,
+                                        reply: result.choices[0].message.content
+                                    }));
+                                } else {
+                                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ success: false, error: 'Invalid API response' }));
+                                }
+                            } catch (e) {
+                                console.error('Parse error:', e);
+                                res.writeHead(500, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify({ success: false, error: 'Failed to parse API response' }));
+                            }
+                        });
+                    });
+
+                    apiReq.on('error', (e) => {
+                        console.error('API request error:', e);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, error: e.message }));
+                    });
+
+                    apiReq.write(postData);
+                    apiReq.end();
+
+                } catch (e) {
+                    console.error('Request error:', e);
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, error: 'Invalid request' }));
+                }
+            });
+            return;
+        }
+        res.writeHead(405);
+        res.end('Method not allowed');
+        return;
+    }
+
     if (requestUrl.pathname === '/api/messages') {
         if (req.method === 'GET') {
             fs.readFile(MESSAGES_FILE, (err, data) => {
