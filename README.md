@@ -1,4 +1,4 @@
-# 武大校园闪现 - WHU Campus Flash
+# 珈音快讯 - LUOJIA PULSE
 
 ## 项目简介
 
