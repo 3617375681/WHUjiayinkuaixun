@@ -8,6 +8,7 @@
 
 - 🎯 自动爬取武大各学院官网竞赛信息
 - 📊 智能分类（学科竞赛、双创经管、设计艺术等）
+- 🤖 AI 竞赛助手（基于 DeepSeek，智能推荐竞赛与活动）
 - 🔍 实时搜索和筛选
 - 📱 响应式设计，支持移动端
 - ⏰ 每小时自动更新数据
@@ -17,18 +18,28 @@
 
 - **前端**: HTML5 + Tailwind CSS + Vanilla JavaScript
 - **后端**: Node.js + HTTP Server
+- **AI**: DeepSeek API (deepseek-chat)
 - **爬虫**: Axios + Cheerio
 - **数据**: JSON 本地存储
 
 ## 快速开始
 
-### 安装依赖
+### 1. 安装依赖
 
 ```bash
 npm install
 ```
 
-### 启动服务
+### 2. 配置环境变量
+
+创建 `.env` 文件，添加 DeepSeek API Key：
+
+```env
+DEEPSEEK_API_KEY=your_api_key_here
+PORT=8003
+```
+
+### 3. 启动服务
 
 ```bash
 npm start
@@ -45,11 +56,12 @@ npm run crawl
 ## 项目结构
 
 ```
-├── index.html          # 前端页面
-├── server.js           # HTTP服务器
+├── index.html          # 前端页面（含 AI 聊天侧边栏）
+├── server.js           # HTTP服务器（含 /api/ai-chat 接口）
 ├── crawler.js          # 爬虫脚本
 ├── competitions.json   # 竞赛数据
 ├── messages.json       # 留言数据
+├── .env                # 环境变量（API Key，不提交）
 └── package.json        # 项目配置
 ```
 
